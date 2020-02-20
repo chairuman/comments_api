@@ -1,7 +1,27 @@
 const express = require('express')
 const bodyParser = require('body-parser')
 const cors = require('cors')
+const multer = require('multer')
+const path = require('path')
 const database = require('./config')
+
+const storage = multer.diskStorage({
+    destination: function(request, file, callback){
+        callback(null, 'public/uploads')
+    },
+    filename: function(request, file, callback){
+        callback(null, file.fieldname + '-' + Date.now() + path.extname(file.originalname))
+    }
+})
+
+const filterFile = function(request, file, callback){
+    if(!file.originalname.match(/\.(jpg|jpeg|png|gif)$/)){
+        return callback(new Error('Opps, hanya boleh gambar'), false)
+    }
+    callback(null, true)
+}
+
+const upload = multer({ storage : storage, fileFilter : filterFile })
 
 const app = express()
 
@@ -33,7 +53,9 @@ const getComment = (request, response) => {
 const addComment = (request, response) => {
     const { name, comment } = request.body
     var dateNow = new Date()
-    database.query('INSERT INTO comments (name, comment, created_at, updated_at) VALUES (?,?,?,?)', [name, comment, dateNow, dateNow], error => {
+    const image = request.file.filename
+
+    database.query('INSERT INTO comments (name, comment, image, created_at, updated_at) VALUES (?,?,?,?,?)', [name, comment,image, dateNow, dateNow], error => {
         if(error){
             throw error
         }
@@ -65,7 +87,7 @@ const deleteComment = (request, response) => {
     })
 }
 
-app.route('/comments').get(getComments).post(addComment)
+app.route('/comments').get(getComments).post(upload.single('image'),addComment)
 app.route('/comments/:id').get(getComment).put(editComment).delete(deleteComment)
 
 const port  = process.env.PORT
